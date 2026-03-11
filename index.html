@@ -1,0 +1,106 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8" />
+<title>API Encryption Tool</title>
+
+<link rel="stylesheet" href="style.css" />
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+
+</head>
+
+<body>
+
+<div class="app">
+
+<h1>🔐 API Encryption Playground</h1>
+
+<div class="config">
+
+<div class="field">
+<label>Algorithm</label>
+<select id="algorithm">
+<option value="AES-256">AES-256-CBC</option>
+<option value="AES-192">AES-192-CBC</option>
+<option value="AES-128">AES-128-CBC</option>
+</select>
+</div>
+
+<div class="field">
+<label>IV Length</label>
+<select id="ivLength">
+<option value="16">16 bytes</option>
+<option value="12">12 bytes</option>
+<option value="8">8 bytes</option>
+</select>
+</div>
+
+</div>
+
+<div class="field">
+
+<label>Encryption Key</label>
+
+<input
+id="key"
+placeholder="Enter key"
+oninput="handleKeyInput(this)"
+/>
+
+<div id="keyCounter">0 / 16</div>
+<span id="keyError"></span>
+
+</div>
+
+<div class="grid">
+
+<div class="panel">
+
+<div class="panel-header">
+
+<span>Input</span>
+
+<div class="panel-buttons">
+<button onclick="formatJSON()">Format JSON</button>
+<button onclick="copyText('inputData')">Copy</button>
+</div>
+
+</div>
+
+<textarea id="inputData" placeholder="Paste JSON or text here..."></textarea>
+
+<div class="actions">
+<button id="encryptBtn" onclick="encryptData()">Encrypt →</button>
+<button id="decryptBtn" onclick="decryptData()">← Decrypt</button>
+</div>
+
+</div>
+
+<div class="panel">
+
+<div class="panel-header">
+
+<span>Output</span>
+
+<div class="panel-buttons">
+<button onclick="formatOutputJSON()">Format</button>
+<button onclick="copyText('outputData')">Copy</button>
+</div>
+
+</div>
+
+<textarea id="outputData"></textarea>
+
+</div>
+
+</div>
+
+</div>
+
+<div id="toast"></div>
+
+<script src="script.js"></script>
+
+</body>
+</html>
