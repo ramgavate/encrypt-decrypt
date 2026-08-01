@@ -28,11 +28,11 @@
 </div>
 
 <div class="field">
-<label>IV Length</label>
-<select id="ivLength">
-<option value="16">16 bytes</option>
-<option value="31">31 bytes</option>
-<option value="64">64 bytes</option>
+<label>Encryption Key Length</label>
+<select id="ivLength" onchange="handleIvLengthChange()">
+<option value="16">16 characters</option>
+<option value="32">32 characters</option>
+<option value="64">64 characters</option>
 </select>
 </div>
 
@@ -45,6 +45,7 @@
 <input
 id="key"
 placeholder="Enter key"
+maxlength="16"
 oninput="handleKeyInput(this)"
 />
 
@@ -100,7 +101,7 @@ oninput="handleKeyInput(this)"
 
 <div id="toast"></div>
 
-<script src="script.js"></script>
+<script src="script.js?v=3"></script>
 
 </body>
 </html>
