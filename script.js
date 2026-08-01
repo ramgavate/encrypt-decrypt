@@ -1,5 +1,21 @@
 function getKeyLength() {
-  return 16;
+  return Number(document.getElementById("ivLength").value);
+}
+
+const SUPPORTED_LENGTHS = [16, 31, 64];
+const FORMAT_MAGIC = [0x45, 0x44, 0x31]; // "ED1"
+
+function handleIvLengthChange() {
+  const input = document.getElementById("key");
+  const maxLength = getKeyLength();
+
+  input.maxLength = maxLength;
+
+  if (input.value.length > maxLength) {
+    input.value = input.value.slice(0, maxLength);
+  }
+
+  handleKeyInput(input);
 }
 
 function showToast(message) {
@@ -21,6 +37,13 @@ function encryptData() {
   const key = document.getElementById("key").value;
 
   const input = document.getElementById("inputData").value;
+
+  const expectedLength = getKeyLength();
+
+  if (key.length !== expectedLength) {
+    showToast(`Key must be ${expectedLength} characters`);
+    return;
+  }
 
   if (!input) {
     showToast("Input data is empty");
@@ -50,6 +73,13 @@ function decryptData() {
   const key = document.getElementById("key").value;
 
   const input = document.getElementById("inputData").value.trim();
+
+  const expectedLength = getKeyLength();
+
+  if (key.length !== expectedLength) {
+    showToast(`Key must be ${expectedLength} characters`);
+    return;
+  }
 
   if (!input) {
     showToast("Input data is empty");
@@ -87,7 +117,7 @@ function decryptData() {
 
     console.error(err);
 
-    showToast("Decryption failed");
+    showToast(err.message || "Decryption failed");
 
   }
 
@@ -147,7 +177,16 @@ function encryptAES(plainText, encryptionKey) {
 
   const key = CryptoJS.SHA256(encryptionKey);
 
-  const iv = CryptoJS.lib.WordArray.random(16);
+  const ivLength = getKeyLength();
+
+  const ivMaterial = CryptoJS.lib.WordArray.random(ivLength);
+
+  // AES-CBC always requires a 16-byte IV. For the selectable 31/64-byte
+  // material, derive a deterministic 16-byte working IV without discarding
+  // the extra entropy. The full material is stored with the ciphertext.
+  const ivHash = CryptoJS.SHA256(CryptoJS.enc.Hex.stringify(ivMaterial));
+
+  const iv = CryptoJS.lib.WordArray.create(ivHash.words.slice(0, 4), 16);
 
   const encrypted = CryptoJS.AES.encrypt(
 
@@ -163,7 +202,9 @@ function encryptAES(plainText, encryptionKey) {
 
   );
 
-  const combined = iv.concat(encrypted.ciphertext);
+  const header = bytesToWordArray([...FORMAT_MAGIC, ivLength]);
+
+  const combined = header.concat(ivMaterial).concat(encrypted.ciphertext);
 
   return CryptoJS.enc.Base64.stringify(combined);
 
@@ -175,15 +216,57 @@ function decryptAES(encryptedData, encryptionKey) {
 
   const decoded = CryptoJS.enc.Base64.parse(encryptedData);
 
-  const iv = CryptoJS.lib.WordArray.create(decoded.words.slice(0, 4), 16);
+  const decodedBytes = wordArrayToBytes(decoded);
 
-  const ciphertext = CryptoJS.lib.WordArray.create(
-
-    decoded.words.slice(4),
-
-    decoded.sigBytes - 16
-
+  const hasVersionedHeader = FORMAT_MAGIC.every(
+    (value, index) => decodedBytes[index] === value
   );
+
+  let ivLength = 16;
+
+  let ciphertextOffset = 16;
+
+  let iv;
+
+  if (hasVersionedHeader) {
+
+    ivLength = decodedBytes[3];
+
+    if (!SUPPORTED_LENGTHS.includes(ivLength)) {
+      throw new Error("Unsupported IV length in encrypted data");
+    }
+
+    if (decodedBytes.length <= 4 + ivLength) {
+      throw new Error("Encrypted data is incomplete");
+    }
+
+    const selectedLength = getKeyLength();
+
+    if (encryptionKey.length !== ivLength || selectedLength !== ivLength) {
+      throw new Error(`Select ${ivLength} bytes and use a ${ivLength}-character key`);
+    }
+
+    const ivMaterial = bytesToWordArray(decodedBytes.slice(4, 4 + ivLength));
+
+    const ivHash = CryptoJS.SHA256(CryptoJS.enc.Hex.stringify(ivMaterial));
+
+    iv = CryptoJS.lib.WordArray.create(ivHash.words.slice(0, 4), 16);
+
+    ciphertextOffset = 4 + ivLength;
+
+  } else {
+
+    // Backward compatibility with ciphertexts created by the original tool,
+    // which stored a raw 16-byte IV without a version header.
+    if (encryptionKey.length !== 16) {
+      throw new Error("Legacy encrypted data requires a 16-character key");
+    }
+
+    iv = bytesToWordArray(decodedBytes.slice(0, 16));
+
+  }
+
+  const ciphertext = bytesToWordArray(decodedBytes.slice(ciphertextOffset));
 
   const decrypted = CryptoJS.AES.decrypt(
 
@@ -200,6 +283,33 @@ function decryptAES(encryptedData, encryptionKey) {
   );
 
   return decrypted.toString(CryptoJS.enc.Utf8);
+
+}
+
+function wordArrayToBytes(wordArray) {
+
+  const bytes = [];
+
+  for (let index = 0; index < wordArray.sigBytes; index += 1) {
+    bytes.push(
+      (wordArray.words[index >>> 2] >>> (24 - (index % 4) * 8)) & 0xff
+    );
+  }
+
+  return bytes;
+
+}
+
+function bytesToWordArray(bytes) {
+
+  const words = [];
+
+  bytes.forEach((byte, index) => {
+    words[index >>> 2] = (words[index >>> 2] || 0) |
+      (byte << (24 - (index % 4) * 8));
+  });
+
+  return CryptoJS.lib.WordArray.create(words, bytes.length);
 
 }
 
@@ -252,3 +362,10 @@ function formatOutputJSON() {
   }
 
 }
+
+document.getElementById("ivLength").addEventListener(
+  "change",
+  handleIvLengthChange
+);
+
+handleIvLengthChange();
